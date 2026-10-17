@@ -1,0 +1,1202 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SchematicMaker</title>
+<style>
+  :root {
+    --bg: #0a0f1a;
+    --panel: #0f1828;
+    --panel-2: #152238;
+    --well: #08101c;
+    --line: #1f3050;
+    --text: #d9e6ff;
+    --muted: #7088b0;
+    --cyan: #43d4e8;
+    --danger: #ff6b7a;
+    --radius: 6px;
+    --mono: Consolas, "Cascadia Mono", monospace;
+    --ui: "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 13px/1.4 var(--ui);
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    overflow: hidden;
+  }
+  input, select, button { font: inherit; color: var(--text); }
+  button {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 6px 11px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  button:hover { border-color: var(--cyan); }
+  button.on, button.primary { border-color: var(--cyan); color: var(--cyan); }
+  button:disabled { opacity: .4; cursor: default; border-color: var(--line); }
+  input[type=number], input[type=text] {
+    background: var(--well);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 5px 8px;
+    min-width: 0;
+  }
+  input:focus { outline: 1px solid var(--cyan); }
+  input[type=range] { accent-color: var(--cyan); }
+
+  header {
+    display: flex; align-items: center; gap: 18px;
+    padding: 10px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; font-size: 14px; }
+  .brand svg { width: 26px; height: 26px; flex: none; }
+  .brand b { color: var(--cyan); font-weight: 700; }
+  .group { display: flex; align-items: center; gap: 8px; }
+  .clock { font-family: var(--mono); color: var(--cyan); min-width: 180px; }
+
+  .tools {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+  }
+  .sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
+
+  .workspace { display: grid; grid-template-columns: 250px 1fr 230px; min-height: 0; }
+  aside { background: var(--panel); overflow: auto; padding: 12px; min-height: 0; }
+  aside.left { border-right: 1px solid var(--line); }
+  aside.right { border-left: 1px solid var(--line); }
+  h3 {
+    font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted); margin: 4px 0 10px; font-weight: 600;
+  }
+  main { position: relative; min-width: 0; min-height: 0; }
+  #cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  .layer {
+    display: grid; grid-template-columns: 10px 1fr; gap: 6px 8px; align-items: center;
+    padding: 8px; margin-bottom: 8px;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: #0b1424; cursor: pointer;
+  }
+  .layer.on { border-color: var(--cyan); box-shadow: inset 3px 0 0 var(--cyan); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .layer input[type=text] { width: 100%; }
+  .layer .meta { grid-column: 2; display: flex; align-items: center; gap: 6px; }
+  .layer .meta .inst { flex: 1; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .layer .meta input[type=range] { width: 64px; }
+  .mini { padding: 2px 7px; font-size: 11px; }
+  .mini.on { border-color: var(--danger); color: var(--danger); }
+  .mini.lock.on { border-color: var(--amber, #ffb84d); color: #ffb84d; }
+
+  .inst-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .inst-card {
+    position: relative; overflow: hidden;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: #0b1424; padding: 8px 8px 8px 12px;
+    cursor: pointer; font-size: 12px;
+  }
+  .inst-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--c); }
+  .inst-card:hover { border-color: var(--muted); }
+  .inst-card.on { border-color: var(--cyan); }
+
+  .hint { color: var(--muted); font-size: 12px; line-height: 1.55; }
+  #addLayer { width: 100%; margin-bottom: 14px; }
+
+  footer {
+    display: flex; gap: 18px; justify-content: space-between; flex-wrap: wrap;
+    padding: 6px 16px;
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+  }
+  #status { color: var(--text); }
+
+  @media (max-width: 900px) {
+    .workspace { grid-template-columns: 1fr; grid-template-rows: 220px 1fr 180px; }
+    aside.left, aside.right { border: none; border-bottom: 1px solid var(--line); }
+    .clock { min-width: 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="brand" href="index.html" title="Zur Startseite" style="color:inherit;text-decoration:none">
+    <svg viewBox="0 0 26 26" aria-hidden="true">
+      <path d="M13 2 24 8v10l-11 6L2 18V8z" fill="none" stroke="#43d4e8" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M2 8l11 6 11-6M13 14v10" fill="none" stroke="#43d4e8" stroke-width="1.6" stroke-linejoin="round"/>
+    </svg>
+    <span>Schematic<b>Maker</b></span>
+  </a>
+  <div class="group">
+    <button id="play" class="primary" title="Abspielen / Pause (Leertaste)">▶ Abspielen</button>
+    <button id="stop" title="Stopp, zurück zur Startposition">■ Stopp</button>
+    <label class="group">BPM <input id="bpm" type="number" min="30" max="300" value="120" style="width:72px"></label>
+  </div>
+  <div id="clock" class="clock">Takt 1.1 · 0:00.0</div>
+  <div class="group" style="margin-left:auto">
+    <input id="songName" type="text" style="width:200px" aria-label="Projektname">
+    <button id="btnNew">Neu</button>
+    <button id="btnOpen">Öffnen</button>
+    <button id="btnSave" title="Speichern (Strg+S)">Speichern</button>
+    <input id="file" type="file" accept=".json,application/json" hidden>
+  </div>
+</header>
+
+<div class="tools">
+  <div class="group">
+    <button data-tool="draw" class="on" title="Setzen (B)">Setzen (B)</button>
+    <button data-tool="erase" title="Löschen (E)">Löschen (E)</button>
+    <button data-tool="select" title="Auswahl (S)">Auswahl (S)</button>
+  </div>
+  <span class="sep"></span>
+  <div class="group">
+    <button id="undo" title="Strg+Z">Rückgängig</button>
+    <button id="redo" title="Strg+Y">Wiederholen</button>
+  </div>
+  <span class="sep"></span>
+  <div class="group">
+    <button id="copy" title="Strg+C">Kopieren</button>
+    <button id="paste" title="Strg+V, fügt am Cursor ein">Einfügen</button>
+    <button id="delSel" title="Entf">Auswahl löschen</button>
+  </div>
+  <span class="sep"></span>
+  <label class="group">Zoom <input id="zoom" type="range" min="10" max="48" value="22"></label>
+</div>
+
+<div class="workspace">
+  <aside class="left">
+    <h3>Ebenen</h3>
+    <div id="layers"></div>
+    <button id="addLayer">+ Ebene hinzufügen</button>
+    <p class="hint">Klick auf eine Ebene macht sie aktiv. Neue Noten gehören zur aktiven Ebene. Gesperrte Ebenen bleiben unverändert. Stumme Ebenen werden nicht abgespielt.</p>
+  </aside>
+
+  <main><canvas id="cv"></canvas></main>
+
+  <aside class="right">
+    <h3>Instrumente</h3>
+    <div id="insts" class="inst-grid"></div>
+    <h3 style="margin-top:18px">Bedienung</h3>
+    <p class="hint">
+      Klick setzt oder entfernt eine Note. Ziehen malt mehrere Noten.<br>
+      Auswahl: Rechteck ziehen, markierte Noten verschieben.<br>
+      Klick auf die Tastenleiste spielt eine Vorschau.<br>
+      Klick auf die Zeitleiste setzt den Abspielkopf.<br><br>
+      Mausrad: vertikal<br>
+      Shift + Rad: horizontal<br>
+      Strg + Rad: Zoom
+    </p>
+  </aside>
+</div>
+
+<footer>
+  <span id="status">Bereit</span>
+  <span id="hover"></span>
+</footer>
+<div style="padding:8px 16px 10px;background:#0a0f1a;border-top:1px solid #1f3050;color:#7088b0;font:11px/1.5 'Segoe UI',system-ui,sans-serif">
+  Dieses Werkzeug ist inoffiziell und steht in keiner Verbindung zu Mojang AB oder Microsoft. Minecraft ist eine Marke der Mojang AB bzw. Microsoft. Eigene Noteblock-Songs bleiben beim Ersteller.
+  <a href="index.html" style="color:#43d4e8">Zur Startseite</a>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- Konstanten ----------
+  const KEYS = 25;              // 2 Oktaven, Taste 0 = F#3, Taste 24 = F#5
+  const ROW = 18;               // Zeilenhöhe in px
+  const GUT = 64;               // Breite der Tastenleiste
+  const RULER = 26;             // Höhe der Zeitleiste
+  const BASE_MIDI = 54;         // MIDI-Nummer von F#3
+  const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const BLACK = [1, 3, 6, 8, 10];
+  const PALETTE = ['#ffb84d', '#43d4e8', '#ff7aa8', '#8ee06b', '#b49cff', '#ff8c5a', '#5ee6c8', '#f2e46b'];
+  const AUTOSAVE_KEY = 'schematicmaker:autosave';
+  const MAX_LAYERS = 32;
+
+  const $ = id => document.getElementById(id);
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const noteName = k => NAMES[(BASE_MIDI + k) % 12] + (Math.floor((BASE_MIDI + k) / 12) - 1);
+  const isBlack = k => BLACK.includes((BASE_MIDI + k) % 12);
+  const freqOf = k => 440 * Math.pow(2, (BASE_MIDI + k - 69) / 12);
+  const key = (t, k, l) => t + ':' + k + ':' + l;
+  const inBounds = (t, k) => t >= 0 && k >= 0 && k < KEYS;
+
+  // ---------- Audio ----------
+  let ac = null, master = null, noiseBuf = null;
+
+  function audio() {
+    if (!ac) {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      const comp = ac.createDynamicsCompressor();
+      master = ac.createGain();
+      master.gain.value = 0.7;
+      master.connect(comp);
+      comp.connect(ac.destination);
+      noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    if (ac.state === 'suspended') ac.resume();
+    return ac;
+  }
+
+  function env(g, when, peak, dur) {
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), when + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+  }
+
+  function tone(dest, when, freq, type, vol, dur, lp) {
+    const o = ac.createOscillator();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, when);
+    const g = ac.createGain();
+    env(g, when, vol * 0.25, dur);
+    if (lp) {
+      const f = ac.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = lp;
+      o.connect(f);
+      f.connect(g);
+    } else {
+      o.connect(g);
+    }
+    g.connect(dest);
+    o.start(when);
+    o.stop(when + dur + 0.05);
+  }
+
+  function noise(dest, when, vol, dur, type, freq) {
+    const src = ac.createBufferSource();
+    src.buffer = noiseBuf;
+    const f = ac.createBiquadFilter();
+    f.type = type;
+    f.frequency.value = freq;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(Math.max(vol * 0.4, 0.0002), when);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+    src.connect(f);
+    f.connect(g);
+    g.connect(dest);
+    src.start(when, Math.random() * 0.5);
+    src.stop(when + dur + 0.02);
+  }
+
+  function kick(dest, when, vol) {
+    const o = ac.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(150, when);
+    o.frequency.exponentialRampToValueAtTime(40, when + 0.2);
+    const g = ac.createGain();
+    env(g, when, vol * 0.8, 0.35);
+    o.connect(g);
+    g.connect(dest);
+    o.start(when);
+    o.stop(when + 0.4);
+  }
+
+  // Die Klangfarben sind eigene Synthesizer-Definitionen, keine Samples.
+  const INSTRUMENTS = [
+    { name: 'Harfe',          play: (d, w, f, v) => tone(d, w, f, 'sine', v, 1.2) },
+    { name: 'Bass',           play: (d, w, f, v) => tone(d, w, f / 2, 'sawtooth', v, 0.6, 500) },
+    { name: 'Basstrommel',    play: (d, w, f, v) => kick(d, w, v) },
+    { name: 'Snare',          play: (d, w, f, v) => noise(d, w, v, 0.2, 'bandpass', 1800) },
+    { name: 'Hi-Hat',         play: (d, w, f, v) => noise(d, w, v, 0.06, 'highpass', 7000) },
+    { name: 'Gitarre',        play: (d, w, f, v) => tone(d, w, f, 'square', v * 0.6, 0.8, 1800) },
+    { name: 'Flöte',          play: (d, w, f, v) => tone(d, w, f, 'sine', v, 0.9) },
+    { name: 'Glocke',         play: (d, w, f, v) => { tone(d, w, f * 2, 'sine', v * 0.5, 1.5); tone(d, w, f, 'sine', v, 1.5); } },
+    { name: 'Glockenspiel',   play: (d, w, f, v) => tone(d, w, f, 'triangle', v, 1.5) },
+    { name: 'Xylophon',       play: (d, w, f, v) => tone(d, w, f, 'sine', v, 0.4) },
+    { name: 'Eisen-Xylophon', play: (d, w, f, v) => tone(d, w, f, 'square', v * 0.5, 0.3, 2500) },
+    { name: 'Kuhglocke',      play: (d, w, f, v) => tone(d, w, f, 'triangle', v, 0.5) },
+    { name: 'Didgeridoo',     play: (d, w, f, v) => tone(d, w, f / 2, 'sawtooth', v * 0.7, 1.2, 300) },
+    { name: 'Bit',            play: (d, w, f, v) => tone(d, w, f, 'square', v * 0.5, 0.2) },
+    { name: 'Banjo',          play: (d, w, f, v) => tone(d, w, f, 'sawtooth', v * 0.6, 0.25, 3000) },
+    { name: 'Pling',          play: (d, w, f, v) => tone(d, w, f, 'sawtooth', v * 0.5, 1.2, 1500) },
+  ];
+
+  function playInstrument(idx, when, k, vol) {
+    audio();
+    INSTRUMENTS[idx].play(master, when, freqOf(k), vol);
+  }
+
+  // ---------- Zustand ----------
+  const state = {
+    name: 'Unbenannter Entwurf',
+    bpm: 120,
+    layers: [],
+    notes: new Map(),        // key -> {t, k, l}
+    cur: 0,
+    tool: 'draw',
+    zoom: 22,
+    scrollX: 0,
+    scrollY: 0,
+    cursorTick: 0,
+    selection: new Set(),    // Schlüssel der markierten Noten
+    clipboard: null,
+    dirty: false,
+  };
+  let hover = null;          // {t, k}
+  let drag = null;
+  let clipboardBase = null;
+
+  function newLayer(i) {
+    return { name: 'Ebene ' + (i + 1), inst: 0, vol: 100, locked: false, muted: false, color: PALETTE[i % PALETTE.length] };
+  }
+  state.layers.push(newLayer(0));
+
+  // ---------- Verlauf (Undo/Redo) ----------
+  const history = { undo: [], redo: [] };
+
+  function snap() {
+    return JSON.stringify({ layers: state.layers, notes: [...state.notes.values()] });
+  }
+  function pushUndo(s) {
+    history.undo.push(s);
+    if (history.undo.length > 200) history.undo.shift();
+    history.redo = [];
+  }
+  function restore(s) {
+    const d = JSON.parse(s);
+    state.layers = d.layers;
+    state.notes = new Map(d.notes.map(n => [key(n.t, n.k, n.l), n]));
+    state.cur = clamp(state.cur, 0, state.layers.length - 1);
+    state.selection.clear();
+    markDirty();
+    renderAll();
+  }
+  function undo() {
+    if (!history.undo.length) return;
+    history.redo.push(snap());
+    restore(history.undo.pop());
+    setStatus('Rückgängig');
+  }
+  function redo() {
+    if (!history.redo.length) return;
+    history.undo.push(snap());
+    restore(history.redo.pop());
+    setStatus('Wiederholt');
+  }
+
+  function markDirty() {
+    state.dirty = true;
+    saveSoon();
+  }
+
+  // ---------- Speichern / Laden ----------
+  let saveTimer = null;
+  function saveSoon() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(serialize())); } catch (e) { /* Speicher nicht verfügbar */ }
+    }, 400);
+  }
+
+  function serialize() {
+    return {
+      format: 'schematicmaker',
+      version: 1,
+      name: state.name,
+      bpm: state.bpm,
+      layers: state.layers.map(L => ({ name: L.name, inst: L.inst, vol: L.vol, locked: L.locked, muted: L.muted })),
+      notes: [...state.notes.values()].map(n => [n.t, n.k, n.l]),
+    };
+  }
+
+  function load(d) {
+    if (!d || d.format !== 'schematicmaker' || !Array.isArray(d.layers) || !Array.isArray(d.notes)) {
+      throw new Error('Keine gültige SchematicMaker-Datei.');
+    }
+    state.name = String(d.name || 'Unbenannt').slice(0, 60);
+    state.bpm = clamp(Math.round(+d.bpm) || 120, 30, 300);
+    state.layers = d.layers.slice(0, MAX_LAYERS).map((L, i) => ({
+      name: String(L.name || 'Ebene ' + (i + 1)).slice(0, 24),
+      inst: clamp(L.inst | 0, 0, INSTRUMENTS.length - 1),
+      vol: Number.isFinite(+L.vol) ? clamp(+L.vol, 0, 100) : 100,
+      locked: !!L.locked,
+      muted: !!L.muted,
+      color: PALETTE[i % PALETTE.length],
+    }));
+    if (!state.layers.length) state.layers.push(newLayer(0));
+    state.notes = new Map();
+    for (const a of d.notes) {
+      if (!Array.isArray(a) || a.length < 3) continue;
+      const t = a[0] | 0, k = a[1] | 0, l = a[2] | 0;
+      if (!inBounds(t, k) || l < 0 || l >= state.layers.length) continue;
+      state.notes.set(key(t, k, l), { t, k, l });
+    }
+    state.cur = 0;
+    state.selection.clear();
+    state.scrollX = 0;
+    state.dirty = false;
+    play.tick = 0;
+    play.startTick = 0;
+    renderAll();
+  }
+
+  function download() {
+    const blob = new Blob([JSON.stringify(serialize(), null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    const safe = (state.name || 'projekt').replace(/[\\/:*?"<>|]+/g, '_');
+    a.href = URL.createObjectURL(blob);
+    a.download = safe + '.schematic.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    state.dirty = false;
+    setStatus('Gespeichert als ' + a.download);
+  }
+
+  // ---------- Wiedergabe ----------
+  const play = { on: false, tick: 0, startTick: 0, next: 0, timer: null, byTick: null, maxTick: 0 };
+  const tickSec = () => 60 / (state.bpm * 4);
+
+  function displayTick() {
+    if (!play.on) return play.tick;
+    return Math.max(0, play.tick - (play.next - ac.currentTime) / tickSec());
+  }
+
+  function playNoteAt(n, when) {
+    const L = state.layers[n.l];
+    if (!L || L.muted) return;
+    INSTRUMENTS[L.inst].play(master, when, freqOf(n.k), L.vol / 100);
+  }
+
+  function pump() {
+    const sec = tickSec();
+    while (play.next < ac.currentTime + 0.15) {
+      const list = play.byTick.get(play.tick);
+      if (list) for (const n of list) playNoteAt(n, play.next);
+      play.tick++;
+      play.next += sec;
+      if (play.tick > play.maxTick) {
+        stop();
+        setStatus('Wiedergabe beendet');
+        return;
+      }
+    }
+  }
+
+  function start() {
+    audio();
+    play.byTick = new Map();
+    let mx = 0;
+    for (const n of state.notes.values()) {
+      if (!play.byTick.has(n.t)) play.byTick.set(n.t, []);
+      play.byTick.get(n.t).push(n);
+      if (n.t > mx) mx = n.t;
+    }
+    play.maxTick = mx;
+    play.startTick = play.tick;
+    play.on = true;
+    play.next = ac.currentTime + 0.06;
+    pump();
+    play.timer = setInterval(pump, 25);
+    updatePlayButton();
+  }
+
+  function pause() {
+    if (!play.on) return;
+    play.tick = Math.round(displayTick());
+    clearInterval(play.timer);
+    play.on = false;
+    updatePlayButton();
+  }
+
+  function stop() {
+    if (play.on) {
+      clearInterval(play.timer);
+      play.on = false;
+    }
+    play.tick = play.startTick;
+    updatePlayButton();
+  }
+
+  function togglePlay() {
+    if (play.on) pause(); else start();
+  }
+
+  function updatePlayButton() {
+    $('play').textContent = play.on ? '❚❚ Pause' : '▶ Abspielen';
+    $('play').classList.toggle('primary', true);
+  }
+
+  // ---------- Ebenen & Instrumente (UI) ----------
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  function miniBtn(label, title, cls, onClick) {
+    const b = el('button', 'mini ' + (cls || ''), label);
+    b.title = title;
+    b.addEventListener('click', e => { e.stopPropagation(); onClick(); });
+    return b;
+  }
+
+  function renderLayers() {
+    const box = $('layers');
+    box.innerHTML = '';
+    state.layers.forEach((L, i) => {
+      const row = el('div', 'layer' + (i === state.cur ? ' on' : ''));
+      row.addEventListener('click', e => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+        state.cur = i;
+        renderAll();
+      });
+
+      const dot = el('span', 'dot');
+      dot.style.background = L.color;
+
+      const name = el('input');
+      name.type = 'text';
+      name.maxLength = 24;
+      name.value = L.name;
+      name.addEventListener('input', () => { L.name = name.value; markDirty(); });
+
+      const meta = el('div', 'meta');
+      const inst = el('span', 'inst', INSTRUMENTS[L.inst].name);
+      inst.title = 'Instrument: ' + INSTRUMENTS[L.inst].name;
+      const vol = el('input');
+      vol.type = 'range';
+      vol.min = 0;
+      vol.max = 100;
+      vol.value = L.vol;
+      vol.title = 'Lautstärke ' + L.vol + ' %';
+      vol.addEventListener('input', () => { L.vol = +vol.value; vol.title = 'Lautstärke ' + L.vol + ' %'; markDirty(); });
+
+      const mute = miniBtn('M', 'Stumm schalten', L.muted ? 'on' : '', () => {
+        L.muted = !L.muted; markDirty(); renderLayers();
+      });
+      const lock = miniBtn('S', 'Sperren / entsperren', 'lock' + (L.locked ? ' on' : ''), () => {
+        L.locked = !L.locked; markDirty(); renderLayers();
+      });
+      const del = miniBtn('×', 'Ebene löschen', '', () => deleteLayer(i));
+
+      meta.append(inst, vol, mute, lock, del);
+      row.append(dot, name, meta);
+      box.appendChild(row);
+    });
+    $('addLayer').disabled = state.layers.length >= MAX_LAYERS;
+  }
+
+  function renderInstruments() {
+    const box = $('insts');
+    box.innerHTML = '';
+    const curInst = state.layers[state.cur] ? state.layers[state.cur].inst : -1;
+    INSTRUMENTS.forEach((I, idx) => {
+      const card = el('div', 'inst-card' + (idx === curInst ? ' on' : ''), I.name);
+      card.style.setProperty('--c', ['#ffb84d','#c98a3a','#ff6b7a','#f2e46b','#dfe8f5','#ff8c5a','#5ee6c8','#8ee06b','#43d4e8','#b49cff','#7088b0','#e0a96d','#d4b06a','#ff7aa8','#d4b06a','#6ea8ff'][idx]);
+      card.addEventListener('click', () => setInstrument(idx));
+      box.appendChild(card);
+    });
+  }
+
+  function setInstrument(idx) {
+    const L = state.layers[state.cur];
+    if (!L) return;
+    if (L.inst !== idx) {
+      if (L.locked) { setStatus('Ebene "' + L.name + '" ist gesperrt'); return; }
+      pushUndo(snap());
+      L.inst = idx;
+      markDirty();
+    }
+    playInstrument(idx, audio().currentTime + 0.01, 12, 0.9);
+    renderAll();
+  }
+
+  function addLayer() {
+    if (state.layers.length >= MAX_LAYERS) return;
+    pushUndo(snap());
+    state.layers.push(newLayer(state.layers.length));
+    state.cur = state.layers.length - 1;
+    markDirty();
+    renderAll();
+  }
+
+  function deleteLayer(i) {
+    if (state.layers.length <= 1) { setStatus('Die letzte Ebene kann nicht gelöscht werden'); return; }
+    pushUndo(snap());
+    const next = new Map();
+    for (const n of state.notes.values()) {
+      if (n.l === i) continue;
+      const l = n.l > i ? n.l - 1 : n.l;
+      next.set(key(n.t, n.k, l), { t: n.t, k: n.k, l });
+    }
+    state.notes = next;
+    state.layers.splice(i, 1);
+    state.selection.clear();
+    state.cur = clamp(state.cur, 0, state.layers.length - 1);
+    markDirty();
+    renderAll();
+  }
+
+  function preview(k) {
+    const L = state.layers[state.cur];
+    playInstrument(L ? L.inst : 0, audio().currentTime + 0.01, k, 0.9);
+  }
+
+  // ---------- Werkzeuge & Auswahl ----------
+  function setTool(t) {
+    state.tool = t;
+    document.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
+    $('cv').style.cursor = t === 'select' ? 'default' : 'crosshair';
+  }
+
+  function deleteSelection() {
+    if (!state.selection.size) return;
+    pushUndo(snap());
+    for (const k of state.selection) state.notes.delete(k);
+    setStatus(state.selection.size + ' Noten gelöscht');
+    state.selection.clear();
+    markDirty();
+  }
+
+  function copySelection() {
+    if (!state.selection.size) { setStatus('Nichts ausgewählt'); return; }
+    const list = [...state.selection].map(k => state.notes.get(k)).filter(Boolean);
+    const minT = Math.min(...list.map(n => n.t));
+    state.clipboard = list.map(n => ({ dt: n.t - minT, k: n.k, l: n.l }));
+    setStatus(list.length + ' Noten kopiert');
+  }
+
+  function pasteAtCursor() {
+    if (!state.clipboard || !state.clipboard.length) { setStatus('Zwischenablage ist leer'); return; }
+    pushUndo(snap());
+    const sel = new Set();
+    let count = 0;
+    for (const c of state.clipboard) {
+      const t = state.cursorTick + c.dt, l = c.l;
+      const L = state.layers[l];
+      if (!L || L.locked || !inBounds(t, c.k)) continue;
+      const kk = key(t, c.k, l);
+      state.notes.set(kk, { t, k: c.k, l });
+      sel.add(kk);
+      count++;
+    }
+    state.selection = sel;
+    setStatus(count + ' Noten eingefügt');
+    markDirty();
+  }
+
+  function selectAll() {
+    state.selection.clear();
+    for (const [kk, n] of state.notes) {
+      if (!state.layers[n.l].locked) state.selection.add(kk);
+    }
+    setStatus(state.selection.size + ' Noten ausgewählt');
+  }
+
+  // ---------- Canvas: Koordinaten ----------
+  const cv = $('cv');
+  const g = cv.getContext('2d');
+
+  function pos(e) {
+    const r = cv.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  function cellAt(x, y) {
+    return {
+      t: Math.floor((x - GUT + state.scrollX) / state.zoom),
+      k: KEYS - 1 - Math.floor((y - RULER + state.scrollY) / ROW),
+    };
+  }
+
+  function extentTick() {
+    let mx = 128;
+    for (const n of state.notes.values()) if (n.t + 64 > mx) mx = n.t + 64;
+    return Math.max(mx, Math.ceil(displayTick()) + 64);
+  }
+
+  function clampScroll() {
+    const W = cv.clientWidth, H = cv.clientHeight;
+    const maxX = Math.max(0, extentTick() * state.zoom - (W - GUT));
+    const maxY = Math.max(0, KEYS * ROW - (H - RULER));
+    state.scrollX = clamp(state.scrollX, 0, maxX);
+    state.scrollY = clamp(state.scrollY, 0, maxY);
+  }
+
+  // ---------- Canvas: Eingaben ----------
+  function paint(t, k, mode) {
+    if (!inBounds(t, k)) return;
+    const kk = key(t, k, state.cur);
+    if (mode === 'draw') {
+      if (!state.notes.has(kk)) { state.notes.set(kk, { t, k, l: state.cur }); markDirty(); }
+    } else if (state.notes.delete(kk)) {
+      markDirty();
+    }
+  }
+
+  function applyMove(d, dt, dk) {
+    const map = new Map();
+    const sel = new Set();
+    for (const n of d.base) {
+      const kk = key(n.t, n.k, n.l);
+      if (!d.sel.has(kk)) map.set(kk, n);
+    }
+    for (const n of d.base) {
+      const kk = key(n.t, n.k, n.l);
+      if (!d.sel.has(kk)) continue;
+      const t = n.t + dt, k = n.k + dk;
+      const nk = key(t, k, n.l);
+      map.set(nk, { t, k, l: n.l });
+      sel.add(nk);
+    }
+    state.notes = map;
+    state.selection = sel;
+  }
+
+  function rectSelect(d) {
+    const a = cellAt(Math.min(d.x0, d.x1), Math.max(d.y0, d.y1));
+    const b = cellAt(Math.max(d.x0, d.x1), Math.min(d.y0, d.y1));
+    const t0 = a.t, t1 = b.t, k0 = a.k, k1 = b.k;
+    const sel = new Set(d.shift ? d.baseSel : []);
+    for (const [kk, n] of state.notes) {
+      if (n.t < t0 || n.t > t1 || n.k < k0 || n.k > k1) continue;
+      if (state.layers[n.l].locked) continue;
+      sel.add(kk);
+    }
+    state.selection = sel;
+  }
+
+  cv.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    const { x, y } = pos(e);
+    const { t, k } = cellAt(x, y);
+
+    if (y < RULER) {
+      if (!play.on && t >= 0) { play.tick = t; play.startTick = t; }
+      return;
+    }
+    if (x < GUT) {
+      if (inBounds(0, k)) preview(k);
+      return;
+    }
+    if (t < 0) return;
+
+    cv.setPointerCapture(e.pointerId);
+    state.cursorTick = t;
+    const before = snap();
+
+    if (state.tool === 'select') {
+      const hitKey = key(t, k, state.cur);
+      const hit = state.notes.get(hitKey);
+      if (hit && !state.layers[state.cur].locked) {
+        if (!state.selection.has(hitKey)) {
+          if (!e.shiftKey) state.selection.clear();
+          state.selection.add(hitKey);
+        }
+        const base = [...state.notes.values()];
+        const sel = new Set(state.selection);
+        const selNotes = base.filter(n => sel.has(key(n.t, n.k, n.l)));
+        drag = {
+          type: 'move', before, startT: t, startK: k, base, sel,
+          minT: Math.min(...selNotes.map(n => n.t)),
+          minK: Math.min(...selNotes.map(n => n.k)),
+          maxK: Math.max(...selNotes.map(n => n.k)),
+          lastDt: 0, lastDk: 0,
+        };
+      } else {
+        const baseSel = new Set(e.shiftKey ? state.selection : []);
+        if (!e.shiftKey) state.selection.clear();
+        drag = { type: 'rect', before, x0: x, y0: y, x1: x, y1: y, shift: e.shiftKey, baseSel };
+      }
+      return;
+    }
+
+    const L = state.layers[state.cur];
+    if (L.locked) { setStatus('Ebene "' + L.name + '" ist gesperrt'); return; }
+    const exists = state.notes.has(key(t, k, state.cur));
+    const mode = state.tool === 'erase' || exists ? 'erase' : 'draw';
+    drag = { type: 'paint', before, mode };
+    paint(t, k, mode);
+  });
+
+  cv.addEventListener('pointermove', e => {
+    const { x, y } = pos(e);
+    const c = cellAt(x, y);
+    hover = (inBounds(c.t, c.k) && c.t >= 0) ? c : null;
+    updateHover(c);
+
+    if (!drag) return;
+    if (drag.type === 'paint') {
+      if (c.t >= 0) paint(c.t, c.k, drag.mode);
+    } else if (drag.type === 'move') {
+      let dt = c.t - drag.startT;
+      let dk = c.k - drag.startK;
+      dt = Math.max(dt, -drag.minT);
+      dk = clamp(dk, -drag.minK, KEYS - 1 - drag.maxK);
+      if (dt !== drag.lastDt || dk !== drag.lastDk) {
+        drag.lastDt = dt;
+        drag.lastDk = dk;
+        applyMove(drag, dt, dk);
+      }
+    } else if (drag.type === 'rect') {
+      drag.x1 = x;
+      drag.y1 = y;
+      rectSelect(drag);
+    }
+  });
+
+  cv.addEventListener('pointerleave', () => { hover = null; });
+
+  function endDrag() {
+    if (!drag) return;
+    const d = drag;
+    drag = null;
+    if (snap() !== d.before) {
+      pushUndo(d.before);
+      markDirty();
+    }
+    if (d.type === 'rect') setStatus(state.selection.size + ' Noten ausgewählt');
+  }
+  cv.addEventListener('pointerup', endDrag);
+  cv.addEventListener('pointercancel', endDrag);
+
+  cv.addEventListener('wheel', e => {
+    e.preventDefault();
+    if (e.ctrlKey) {
+      setZoom(state.zoom * (e.deltaY < 0 ? 1.1 : 0.9));
+      return;
+    }
+    if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      state.scrollX += e.deltaX || e.deltaY;
+    } else {
+      state.scrollY += e.deltaY;
+    }
+    clampScroll();
+  }, { passive: false });
+
+  function setZoom(z) {
+    state.zoom = clamp(Math.round(z), 10, 48);
+    $('zoom').value = state.zoom;
+    clampScroll();
+  }
+
+  // ---------- Zeichnen ----------
+  function rr(x, y, w, h, r) {
+    g.beginPath();
+    g.moveTo(x + r, y);
+    g.arcTo(x + w, y, x + w, y + h, r);
+    g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r);
+    g.arcTo(x, y, x + w, y, r);
+    g.closePath();
+  }
+
+  function draw() {
+    const dpr = window.devicePixelRatio || 1;
+    const W = cv.clientWidth, H = cv.clientHeight;
+    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) {
+      cv.width = Math.round(W * dpr);
+      cv.height = Math.round(H * dpr);
+    }
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    clampScroll();
+
+    const z = state.zoom, sx = state.scrollX, sy = state.scrollY;
+    const tNow = displayTick();
+    const t0 = Math.max(0, Math.floor(sx / z));
+    const t1 = Math.ceil((sx + W - GUT) / z);
+
+    g.fillStyle = '#0a0f1a';
+    g.fillRect(0, 0, W, H);
+
+    g.save();
+    g.beginPath();
+    g.rect(GUT, RULER, W - GUT, H - RULER);
+    g.clip();
+
+    // Zeilen
+    for (let r = 0; r < KEYS; r++) {
+      const k = KEYS - 1 - r;
+      const y = RULER + r * ROW - sy;
+      g.fillStyle = isBlack(k) ? '#0c1424' : '#111d33';
+      g.fillRect(GUT, y, W - GUT, ROW);
+      g.fillStyle = '#1a2a45';
+      g.fillRect(GUT, y + ROW - 1, W - GUT, 1);
+    }
+
+    // Spalten: Schritte, Takte
+    for (let t = t0; t <= t1; t++) {
+      const x = Math.round(GUT + t * z - sx);
+      g.fillStyle = t % 16 === 0 ? '#3d5a86' : t % 4 === 0 ? '#26395d' : '#172640';
+      g.fillRect(x, RULER, 1, H - RULER);
+    }
+
+    // Hover-Zelle
+    if (hover && !drag && state.tool !== 'select') {
+      const x = GUT + hover.t * z - sx;
+      const y = RULER + (KEYS - 1 - hover.k) * ROW - sy;
+      g.strokeStyle = 'rgba(67,212,232,.55)';
+      g.lineWidth = 1;
+      g.strokeRect(x + .5, y + .5, z - 1, ROW - 1);
+    }
+
+    // Noten
+    for (const [kk, n] of state.notes) {
+      if (n.t < t0 - 1 || n.t > t1) continue;
+      const L = state.layers[n.l];
+      if (!L) continue;
+      const x = GUT + n.t * z - sx;
+      const y = RULER + (KEYS - 1 - n.k) * ROW - sy;
+      g.globalAlpha = L.muted ? 0.18 : (n.l === state.cur ? 1 : 0.42);
+      g.fillStyle = L.color;
+      rr(x + 1, y + 2, z - 2, ROW - 4, 3);
+      g.fill();
+      if (state.selection.has(kk)) {
+        g.globalAlpha = 1;
+        g.strokeStyle = '#ffffff';
+        g.lineWidth = 1.5;
+        rr(x + 1, y + 2, z - 2, ROW - 4, 3);
+        g.stroke();
+        g.lineWidth = 1;
+      }
+    }
+    g.globalAlpha = 1;
+
+    // Auswahlrechteck
+    if (drag && drag.type === 'rect') {
+      const x = Math.min(drag.x0, drag.x1), y = Math.min(drag.y0, drag.y1);
+      const w = Math.abs(drag.x1 - drag.x0), h = Math.abs(drag.y1 - drag.y0);
+      g.fillStyle = 'rgba(67,212,232,.12)';
+      g.fillRect(x, y, w, h);
+      g.strokeStyle = '#43d4e8';
+      g.setLineDash([4, 3]);
+      g.strokeRect(x + .5, y + .5, w, h);
+      g.setLineDash([]);
+    }
+
+    // Abspielkopf
+    const px = Math.round(GUT + tNow * z - sx);
+    g.fillStyle = '#43d4e8';
+    g.fillRect(px, RULER, 2, H - RULER);
+    g.restore();
+
+    // Tastenleiste
+    g.font = '10px Consolas, monospace';
+    g.textBaseline = 'middle';
+    for (let r = 0; r < KEYS; r++) {
+      const k = KEYS - 1 - r;
+      const y = RULER + r * ROW - sy;
+      if (y + ROW < RULER || y > H) continue;
+      const black = isBlack(k);
+      g.fillStyle = black ? '#060b14' : '#c9d7ee';
+      g.fillRect(0, y, GUT - 3, ROW - 1);
+      g.fillStyle = black ? '#7088b0' : '#0a0f1a';
+      g.textAlign = 'right';
+      g.fillText(noteName(k), GUT - 9, y + ROW / 2);
+    }
+    g.fillStyle = '#0f1828';
+    g.fillRect(0, 0, GUT, RULER);
+    g.fillStyle = '#1f3050';
+    g.fillRect(0, RULER - 1, W, 1);
+    g.fillRect(GUT - 1, 0, 1, H);
+
+    // Zeitleiste
+    g.fillStyle = '#0f1828';
+    g.fillRect(GUT, 0, W - GUT, RULER);
+    g.fillStyle = '#1f3050';
+    g.fillRect(GUT, RULER - 1, W - GUT, 1);
+    g.textAlign = 'left';
+    g.fillStyle = '#7088b0';
+    for (let t = t0; t <= t1; t++) {
+      const x = Math.round(GUT + t * z - sx);
+      if (t % 16 === 0) {
+        g.fillStyle = '#7088b0';
+        g.fillText(String(t / 16 + 1), x + 4, RULER / 2);
+      } else if (t % 4 === 0) {
+        g.fillStyle = '#3d5a86';
+        g.fillRect(x, RULER - 8, 1, 8);
+      }
+    }
+    // Abspielkopf-Marke in der Zeitleiste
+    g.fillStyle = '#43d4e8';
+    g.beginPath();
+    g.moveTo(px - 5, 0);
+    g.lineTo(px + 7, 0);
+    g.lineTo(px + 1, 9);
+    g.closePath();
+    g.fill();
+  }
+
+  function frame() {
+    if (play.on) {
+      const W = cv.clientWidth;
+      const px = GUT + displayTick() * state.zoom - state.scrollX;
+      if (px > W - 80 || px < GUT) {
+        state.scrollX = Math.max(0, displayTick() * state.zoom - (W - GUT) * 0.2);
+      }
+    }
+    draw();
+    updateClock();
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Anzeige ----------
+  function fmtTime(sec) {
+    const m = Math.floor(sec / 60);
+    const s = (sec % 60).toFixed(1).padStart(4, '0');
+    return m + ':' + s;
+  }
+
+  function updateClock() {
+    const t = displayTick();
+    const bar = Math.floor(t / 16) + 1;
+    const step = Math.floor(t % 16) + 1;
+    $('clock').textContent = 'Takt ' + bar + '.' + step + ' · ' + fmtTime(t * tickSec());
+  }
+
+  function updateHover(c) {
+    if (!inBounds(c.t, c.k) || c.t < 0) { $('hover').textContent = ''; return; }
+    const bar = Math.floor(c.t / 16) + 1;
+    const step = (c.t % 16) + 1;
+    $('hover').textContent = 'Takt ' + bar + '.' + step + ' · Taste ' + noteName(c.k);
+  }
+
+  function setStatus(msg) {
+    $('status').textContent = msg;
+  }
+
+  function renderAll() {
+    renderLayers();
+    renderInstruments();
+    $('songName').value = state.name;
+    $('bpm').value = state.bpm;
+    $('zoom').value = state.zoom;
+    $('undo').disabled = !history.undo.length;
+    $('redo').disabled = !history.redo.length;
+    updatePlayButton();
+    setTool(state.tool);
+  }
+
+  // ---------- Bedienelemente ----------
+  document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+
+  $('play').addEventListener('click', togglePlay);
+  $('stop').addEventListener('click', () => { stop(); setStatus('Gestoppt'); });
+
+  $('bpm').addEventListener('change', e => {
+    state.bpm = clamp(Math.round(+e.target.value) || 120, 30, 300);
+    e.target.value = state.bpm;
+    markDirty();
+  });
+
+  $('songName').addEventListener('input', e => {
+    state.name = e.target.value.slice(0, 60) || 'Unbenannt';
+    markDirty();
+  });
+
+  $('zoom').addEventListener('input', e => setZoom(+e.target.value));
+
+  $('undo').addEventListener('click', undo);
+  $('redo').addEventListener('click', redo);
+  $('copy').addEventListener('click', copySelection);
+  $('paste').addEventListener('click', pasteAtCursor);
+  $('delSel').addEventListener('click', () => { deleteSelection(); renderAll(); });
+  $('addLayer').addEventListener('click', addLayer);
+
+  $('btnNew').addEventListener('click', () => {
+    if (state.dirty && state.notes.size && !confirm('Ungespeicherte Änderungen verwerfen?')) return;
+    pushUndo(snap());
+    stop();
+    state.name = 'Unbenannter Entwurf';
+    state.bpm = 120;
+    state.layers = [newLayer(0)];
+    state.notes = new Map();
+    state.selection.clear();
+    state.cur = 0;
+    state.scrollX = 0;
+    state.dirty = false;
+    saveSoon();
+    renderAll();
+    setStatus('Neues Projekt');
+  });
+
+  $('btnOpen').addEventListener('click', () => $('file').click());
+  $('file').addEventListener('change', e => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        pushUndo(snap());
+        stop();
+        load(data);
+        markDirty();
+        setStatus('Geöffnet: ' + f.name);
+      } catch (err) {
+        setStatus('Fehler: ' + err.message);
+      }
+    };
+    reader.readAsText(f);
+  });
+
+  $('btnSave').addEventListener('click', download);
+
+  window.addEventListener('keydown', e => {
+    if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
+    const mod = e.ctrlKey || e.metaKey;
+    const k = e.key.toLowerCase();
+
+    if (mod) {
+      if (k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+      else if (k === 'y') { e.preventDefault(); redo(); }
+      else if (k === 'c') { e.preventDefault(); copySelection(); }
+      else if (k === 'v') { e.preventDefault(); pasteAtCursor(); }
+      else if (k === 'a') { e.preventDefault(); selectAll(); }
+      else if (k === 's') { e.preventDefault(); download(); }
+      else return;
+      renderAll();
+      return;
+    }
+    if (e.code === 'Space') { e.preventDefault(); togglePlay(); return; }
+    if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelection(); renderAll(); return; }
+    if (e.key === 'Escape') { state.selection.clear(); renderAll(); return; }
+    if (e.key === 'Home') { if (!play.on) { play.tick = 0; play.startTick = 0; } return; }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      if (!play.on) {
+        const d = e.key === 'ArrowLeft' ? -1 : 1;
+        play.tick = Math.max(0, play.tick + d);
+        play.startTick = play.tick;
+      }
+      return;
+    }
+    if (k === 'b') setTool('draw');
+    else if (k === 'e') setTool('erase');
+    else if (k === 's') setTool('select');
+  });
+
+  // Automatische Sicherung im Browser (nur für diesen Browser)
+  try {
+    const saved = localStorage.getItem(AUTOSAVE_KEY);
+    if (saved) load(JSON.parse(saved));
+  } catch (e) { /* Sicherung nicht lesbar: neues Projekt starten */ }
+
+  renderAll();
+  setStatus('Bereit');
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

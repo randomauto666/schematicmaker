@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SchematicMaker · Schematic</title>
+<style>
+  :root {
+    --bg: #0a0f1a;
+    --panel: #0f1828;
+    --panel-2: #152238;
+    --well: #08101c;
+    --line: #1f3050;
+    --text: #d9e6ff;
+    --muted: #7088b0;
+    --cyan: #43d4e8;
+    --danger: #ff6b7a;
+    --radius: 6px;
+    --mono: Consolas, "Cascadia Mono", monospace;
+    --ui: "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 13px/1.4 var(--ui);
+    display: grid; grid-template-rows: auto 1fr auto auto;
+    overflow: hidden;
+  }
+  a { color: var(--cyan); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  button, input { font: inherit; color: var(--text); }
+  button {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 6px 11px; cursor: pointer; white-space: nowrap;
+  }
+  button:hover { border-color: var(--cyan); }
+  button.primary { border-color: var(--cyan); color: var(--cyan); }
+  button:disabled { opacity: .4; cursor: default; border-color: var(--line); }
+  input[type=text] {
+    background: var(--well); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 5px 8px; min-width: 0;
+  }
+  input:focus { outline: 1px solid var(--cyan); }
+
+  header {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  .brand { font-weight: 700; letter-spacing: .1em; text-transform: uppercase; font-size: 14px; color: var(--text); }
+  .brand b { color: var(--cyan); }
+  .meta { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+  .meta strong { color: var(--text); font-weight: 600; }
+  .spacer { flex: 1; }
+
+  main { display: grid; grid-template-columns: 1fr 360px; min-height: 0; }
+  #view { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+  #view canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #empty {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px; text-align: center;
+    border: 2px dashed var(--line); margin: 16px; border-radius: 10px; color: var(--muted);
+    pointer-events: none;
+  }
+  #empty.drag { border-color: var(--cyan); color: var(--text); }
+  #empty button { pointer-events: auto; }
+  #empty.hidden { display: none; }
+
+  aside {
+    background: var(--panel); border-left: 1px solid var(--line);
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  .side-head { padding: 12px 12px 8px; border-bottom: 1px solid var(--line); }
+  h3 {
+    font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 8px; font-weight: 600;
+  }
+  #search { width: 100%; }
+  #list { overflow: auto; padding: 8px 12px; flex: 1; min-height: 0; }
+  .row {
+    display: grid; grid-template-columns: 28px 1fr auto; gap: 4px 10px; align-items: center;
+    padding: 8px; margin-bottom: 8px;
+    border: 1px solid var(--line); border-radius: var(--radius); background: #0b1424;
+  }
+  .row canvas { width: 28px; height: 28px; image-rendering: pixelated; }
+  .row .name { font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .count { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+  .row .replace { grid-column: 1 / 4; display: flex; gap: 6px; }
+  .row .replace input { flex: 1; font-family: var(--mono); font-size: 12px; }
+  .row .replace button { font-size: 12px; padding: 4px 9px; }
+  .hint { color: var(--muted); font-size: 12px; line-height: 1.5; padding: 0 12px 10px; margin: 0; }
+
+  footer {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 16px; background: var(--panel); border-top: 1px solid var(--line);
+  }
+  #status { flex: 1; color: var(--muted); font-family: var(--mono); font-size: 12px; min-width: 200px; }
+  #status.err { color: var(--danger); }
+  #status.ok { color: var(--cyan); }
+
+  .legal {
+    padding: 8px 16px 10px; background: var(--bg); border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 11px; line-height: 1.5;
+  }
+
+  input[type=file] { display: none; }
+
+  @media (max-width: 860px) {
+    body { overflow: auto; grid-template-rows: auto 60vh auto auto auto; }
+    main { grid-template-columns: 1fr; grid-template-rows: 60vh auto; }
+    aside { border-left: none; border-top: 1px solid var(--line); }
+    #list { max-height: none; }
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<header>
+  <a class="brand" href="index.html">Schematic<b>Maker</b></a>
+  <div class="meta" id="info">Keine Datei geöffnet</div>
+  <div class="spacer"></div>
+  <button id="btnOpen">Schematic öffnen</button>
+  <input id="file" type="file" accept=".litematic,.schem">
+</header>
+
+<main>
+  <div id="view">
+    <div id="empty">
+      <div>Schematic hierher ziehen</div>
+      <div style="font-size:12px">Unterstützt: .litematic (Litematica) und .schem (Sponge v2/v3)</div>
+      <button id="btnOpen2" class="primary">Datei auswählen</button>
+    </div>
+  </div>
+
+  <aside>
+    <div class="side-head">
+      <h3>Materialliste</h3>
+      <input id="search" type="text" placeholder="Block suchen …" aria-label="Materialliste durchsuchen">
+    </div>
+    <div id="list"></div>
+    <p class="hint">Ersetzen gilt für alle Zustände des Blocks. Die aktuellen Zustände wie Ausrichtung (<code>facing</code>), Hälfte oder Form werden übernommen, soweit der neue Block sie kennt. Gibst du einen Zustand selbst an, etwa <code>minecraft:oak_stairs[facing=north]</code>, wird genau das verwendet.</p>
+  </aside>
+</main>
+
+<footer>
+  <div id="status">Bereit</div>
+  <button id="btnReset" disabled>Zurücksetzen</button>
+  <button id="btnSave" class="primary" disabled>Speichern</button>
+</footer>
+
+<div class="legal">
+  Minecraft-Texturen, Modelle und Blockzustände © Mojang AB. Minecraft ist eine Marke der Mojang AB bzw. Microsoft. Dieses Werkzeug ist inoffiziell und steht in keiner Verbindung zu Mojang oder Microsoft.
+  Datenquelle: <a href="https://www.npmjs.com/package/mc-assets" target="_blank" rel="noopener">mc-assets</a> (MIT, © 2024 Vitaly Turovsky und Mitwirkende). Three.js (MIT).
+  Geöffnete Schematics gehören ihren Erstellern und werden nur lokal im Browser verarbeitet.
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { loadSchematic, saveSchematic, rebuildPalette } from './js/nbt.js';
+import { BlockLibrary, buildMeshData, transparentTiles } from './js/blockrender.js';
+
+const ATLAS = 'https://cdn.jsdelivr.net/npm/mc-assets@0.2.83/dist/';
+const $ = id => document.getElementById(id);
+
+// ---------- Zustand ----------
+let model = null;          // geladene Schematic
+let original = null;       // {buffer, name} zum Zurücksetzen
+let dirty = false;
+let atlas = null;          // {tex, S, W, H, img, texture, alpha}
+let lib = null;            // BlockLibrary
+
+// ---------- Status ----------
+function setStatus(msg, kind) {
+  const s = $('status');
+  s.textContent = msg;
+  s.className = kind || '';
+}
+
+// ---------- Laden: Atlas, Blockzustände, Modelle ----------
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Bild konnte nicht geladen werden'));
+    img.src = src;
+  });
+}
+
+async function loadLibrary() {
+  setStatus('Lade Texturen und Blockmodelle …');
+  const getJson = url => fetch(url).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  const [atlasJson, img, models] = await Promise.all([
+    getJson(ATLAS + 'blocksAtlases.json'),
+    loadImage(ATLAS + 'blocksAtlasLatest.png'),
+    getJson(ATLAS + 'blockStatesModels.json'),
+  ]);
+  const latest = atlasJson.latest;
+  const S = latest.tileSize / latest.width;
+  const alpha = transparentTiles(img, latest.textures, latest.width, latest.height, S);
+  const texture = new THREE.Texture(img);
+  texture.flipY = false;
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  atlas = { tex: latest.textures, S, W: latest.width, H: latest.height, img, texture, alpha };
+  lib = new BlockLibrary({ blockstates: models.blockstates.latest, models: models.models.latest }, atlas);
+}
+
+// ---------- 3D-Ansicht ----------
+const view = $('view');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setClearColor(0x0a0f1a, 1);
+view.insertBefore(renderer.domElement, $('empty'));
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+const sun = new THREE.DirectionalLight(0xffffff, 0.6);
+sun.position.set(1, 2, 1.5);
+scene.add(sun);
+
+let group = null;
+let grid = null;
+
+function resize() {
+  const w = view.clientWidth, h = view.clientHeight;
+  renderer.setSize(w, h, false);
+  renderer.domElement.style.width = w + 'px';
+  renderer.domElement.style.height = h + 'px';
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+function bounds() {
+  const min = { x: Infinity, y: Infinity, z: Infinity }, max = { x: -Infinity, y: -Infinity, z: -Infinity };
+  for (const r of model.regions) {
+    for (const k of ['x', 'y', 'z']) {
+      min[k] = Math.min(min[k], r.origin[k]);
+      max[k] = Math.max(max[k], r.origin[k] + r.size[k]);
+    }
+  }
+  return { min, max };
+}
+
+function fitCamera() {
+  const { min, max } = bounds();
+  const c = new THREE.Vector3((min.x + max.x) / 2, (min.y + max.y) / 2, (min.z + max.z) / 2);
+  const r = Math.max(max.x - min.x, max.y - min.y, max.z - min.z, 4) * 0.9;
+  controls.target.copy(c);
+  camera.position.set(c.x + r, c.y + r * 0.7, c.z + r);
+  camera.near = Math.max(0.05, r / 500);
+  camera.far = r * 20;
+  camera.updateProjectionMatrix();
+}
+
+function rebuildMesh(refit) {
+  if (!model || !lib) return;
+  const data = buildMeshData(model, lib);
+  if (group) {
+    scene.remove(group);
+    group.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+  }
+  group = new THREE.Group();
+  const map = atlas ? atlas.texture : null;
+  const add = (buf, mat) => {
+    if (!buf.I.length) return;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(buf.P, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(buf.N, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(buf.UV, 2));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(buf.C, 3));
+    g.setIndex(buf.base > 65535 ? new THREE.Uint32BufferAttribute(buf.I, 1) : new THREE.Uint16BufferAttribute(buf.I, 1));
+    group.add(new THREE.Mesh(g, mat));
+  };
+  add(data.solid, new THREE.MeshLambertMaterial({ map, vertexColors: true }));
+  add(data.cut, new THREE.MeshLambertMaterial({ map, vertexColors: true, alphaTest: 0.5, side: THREE.DoubleSide }));
+  add(data.water, new THREE.MeshLambertMaterial({ map, vertexColors: true, transparent: true, opacity: 0.75, depthWrite: false }));
+  scene.add(group);
+
+  if (grid) scene.remove(grid);
+  const { min, max } = bounds();
+  const size = Math.max(max.x - min.x, max.z - min.z, 8);
+  grid = new THREE.GridHelper(size, Math.min(size, 64), 0x1f3050, 0x152238);
+  grid.position.set((min.x + max.x) / 2, min.y, (min.z + max.z) / 2);
+  scene.add(grid);
+  if (refit) fitCamera();
+}
+
+(function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+})();
+
+// ---------- Materialliste ----------
+const AIR = new Set(['minecraft:air', 'minecraft:cave_air', 'minecraft:void_air']);
+
+function baseOf(state) {
+  return state.split('[')[0];
+}
+
+function countsByBase() {
+  const counts = new Map();
+  for (const reg of model.regions) {
+    const per = new Array(reg.palette.length).fill(0);
+    for (let i = 0; i < reg.idx.length; i++) per[reg.idx[i]]++;
+    reg.palette.forEach((state, i) => {
+      if (!per[i] || AIR.has(baseOf(state))) return;
+      const base = baseOf(state);
+      counts.set(base, (counts.get(base) || 0) + per[i]);
+    });
+  }
+  return counts;
+}
+
+function thumbFor(base) {
+  const c = document.createElement('canvas');
+  c.width = 28; c.height = 28;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const r = lib ? lib.thumbRect(base) : null;
+  if (r) {
+    ctx.drawImage(atlas.img, r.u * atlas.W, r.v * atlas.H, r.size * atlas.W, r.size * atlas.H, 0, 0, 28, 28);
+  } else {
+    ctx.fillStyle = '#4a5f80';
+    ctx.fillRect(0, 0, 28, 28);
+  }
+  return c;
+}
+
+function renderList() {
+  const list = $('list');
+  list.innerHTML = '';
+  if (!model) return;
+  const q = $('search').value.trim().toLowerCase();
+  const counts = [...countsByBase()].sort((a, b) => b[1] - a[1]);
+  for (const [base, count] of counts) {
+    if (q && !base.toLowerCase().includes(q)) continue;
+    const row = document.createElement('div');
+    row.className = 'row';
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = base.replace('minecraft:', '');
+    name.title = base;
+    const cnt = document.createElement('div');
+    cnt.className = 'count';
+    cnt.textContent = count.toLocaleString('de-DE');
+    const rep = document.createElement('div');
+    rep.className = 'replace';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'ersetzen durch, z. B. stone_stairs';
+    input.setAttribute('aria-label', 'Ersetzen von ' + base);
+    const btn = document.createElement('button');
+    btn.textContent = 'Ersetzen';
+    const doReplace = () => replaceBlock(base, input.value);
+    btn.addEventListener('click', doReplace);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') doReplace(); });
+    rep.append(input, btn);
+    row.append(thumbFor(base), name, cnt, rep);
+    list.appendChild(row);
+  }
+  if (!list.children.length) {
+    const p = document.createElement('p');
+    p.className = 'hint';
+    p.textContent = q ? 'Keine Treffer.' : 'Keine Blöcke gefunden.';
+    list.appendChild(p);
+  }
+}
+
+// Übernimmt die Zustände des alten Blocks, soweit der neue Block sie kennt.
+function carryProps(oldState, toName) {
+  const m = /^([^[]+)(?:\[(.*)\])?$/.exec(oldState);
+  if (!m[2]) return toName;
+  const valid = lib.validProps(toName.replace('minecraft:', ''));
+  const keep = [];
+  for (const kv of m[2].split(',')) {
+    const [k, v] = kv.split('=');
+    if (valid.has(k) && valid.get(k).has(v)) keep.push(k + '=' + v);
+  }
+  return keep.length ? toName + '[' + keep.sort().join(',') + ']' : toName;
+}
+
+function replaceBlock(from, rawTo) {
+  let to = rawTo.trim().toLowerCase();
+  if (!to) { setStatus('Bitte einen Zielblock eingeben', 'err'); return; }
+  if (!to.includes(':')) to = 'minecraft:' + to;
+  const m = /^minecraft:([a-z0-9_]+)(\[[a-z0-9_=,]*\])?$/.exec(to);
+  if (!m) { setStatus('Ungültige Blockangabe: ' + rawTo, 'err'); return; }
+  if (!lib.hasBlock(m[1])) { setStatus('Unbekannter Block: ' + m[1], 'err'); return; }
+  if (to === from) { setStatus('Quell- und Zielblock sind gleich', 'err'); return; }
+  const explicit = !!m[2];
+
+  let changed = 0;
+  for (const reg of model.regions) {
+    reg.palette = reg.palette.map(s => {
+      if (baseOf(s) !== from) return s;
+      const next = explicit ? to : carryProps(s, to);
+      if (next !== s) changed++;
+      return next;
+    });
+    rebuildPalette(reg);
+  }
+  dirty = true;
+  rebuildMesh(false);
+  renderList();
+  updateInfo();
+  const short = s => s.replace('minecraft:', '');
+  setStatus((changed === 1 ? '1 Blockzustand' : changed + ' Blockzustände') + ' von ' + short(from) + ' → ' + short(to) + ' ersetzt', 'ok');
+}
+
+// ---------- Info & Bedienung ----------
+function updateInfo() {
+  if (!model) { $('info').textContent = 'Keine Datei geöffnet'; return; }
+  const { min, max } = bounds();
+  const dims = (max.x - min.x) + ' × ' + (max.y - min.y) + ' × ' + (max.z - min.z);
+  let total = 0;
+  for (const c of countsByBase().values()) total += c;
+  $('info').innerHTML = '<strong></strong> · ' + model.format.toUpperCase() + ' · ' + dims +
+    ' · Blöcke: ' + total.toLocaleString('de-DE') + ' · Regionen: ' + model.regions.length + (dirty ? ' · geändert' : '');
+  $('info').querySelector('strong').textContent = model.name;
+  $('btnSave').disabled = false;
+  $('btnReset').disabled = false;
+}
+
+async function openFile(file) {
+  if (!file) return;
+  if (!/\.(litematic|schem)$/i.test(file.name)) {
+    setStatus('Nur .litematic und .schem werden unterstützt', 'err');
+    return;
+  }
+  if (!lib) { setStatus('Bitte kurz warten, die Blockdaten werden noch geladen', 'err'); return; }
+  setStatus('Lade ' + file.name + ' …');
+  try {
+    const buffer = await file.arrayBuffer();
+    model = await loadSchematic(buffer, file.name);
+    original = { buffer, name: file.name };
+    dirty = false;
+    $('empty').classList.add('hidden');
+    rebuildMesh(true);
+    renderList();
+    updateInfo();
+    setStatus('Geladen: ' + file.name, 'ok');
+  } catch (err) {
+    setStatus('Fehler beim Laden: ' + err.message, 'err');
+  }
+}
+
+async function save() {
+  if (!model) return;
+  try {
+    const bytes = await saveSchematic(model);
+    const ext = model.format === 'litematic' ? 'litematic' : 'schem';
+    const blob = new Blob([bytes], { type: 'application/octet-stream' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = model.name + '_bearbeitet.' + ext;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    dirty = false;
+    updateInfo();
+    setStatus('Gespeichert als ' + a.download, 'ok');
+  } catch (err) {
+    setStatus('Fehler beim Speichern: ' + err.message, 'err');
+  }
+}
+
+async function reset() {
+  if (!original) return;
+  if (dirty && !confirm('Alle Ersetzungen verwerfen?')) return;
+  await openFile(new File([original.buffer], original.name));
+}
+
+$('btnOpen').addEventListener('click', () => $('file').click());
+$('btnOpen2').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', e => { openFile(e.target.files[0]); e.target.value = ''; });
+$('btnSave').addEventListener('click', save);
+$('btnReset').addEventListener('click', reset);
+$('search').addEventListener('input', renderList);
+
+// Drag & Drop auf die ganze Seite
+let dragDepth = 0;
+window.addEventListener('dragenter', e => { e.preventDefault(); dragDepth++; $('empty').classList.add('drag'); });
+window.addEventListener('dragleave', () => { dragDepth--; if (dragDepth <= 0) $('empty').classList.remove('drag'); });
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => {
+  e.preventDefault();
+  dragDepth = 0;
+  $('empty').classList.remove('drag');
+  openFile(e.dataTransfer.files[0]);
+});
+
+window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+// ---------- Start ----------
+loadLibrary()
+  .then(() => {
+    setStatus('Bereit: Schematic öffnen oder hierher ziehen');
+    if (model) { rebuildMesh(false); renderList(); updateInfo(); }
+  })
+  .catch(err => setStatus('Blockdaten konnten nicht geladen werden: ' + err.message, 'err'));
+</script>
+</body>
+</html>

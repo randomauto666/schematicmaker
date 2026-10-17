@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SchematicMaker</title>
+<style>
+  :root {
+    --bg: #0a0f1a;
+    --panel: #0f1828;
+    --panel-2: #152238;
+    --line: #1f3050;
+    --text: #d9e6ff;
+    --muted: #7088b0;
+    --cyan: #43d4e8;
+    --radius: 10px;
+    --mono: Consolas, "Cascadia Mono", monospace;
+    --ui: "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { min-height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 14px/1.5 var(--ui);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 40px 16px;
+  }
+  .brand { font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-size: 18px; margin-bottom: 6px; }
+  .brand b { color: var(--cyan); }
+  .lead { color: var(--muted); margin: 0 0 32px; }
+  .tools {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 18px; width: min(780px, 100%);
+  }
+  a.card {
+    display: block; text-decoration: none; color: inherit;
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 22px; transition: border-color .15s;
+  }
+  a.card:hover, a.card:focus-visible { border-color: var(--cyan); outline: none; }
+  .card h2 { font-size: 16px; margin: 0 0 8px; color: var(--text); }
+  .card p { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+  .card .go { color: var(--cyan); font-size: 13px; font-weight: 600; }
+  .icon {
+    width: 40px; height: 40px; border-radius: 8px; margin-bottom: 14px;
+    border: 1px solid var(--line); display: grid; place-items: center; background: var(--panel-2);
+  }
+  .icon svg { width: 22px; height: 22px; }
+  .legal {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    padding: 8px 16px 10px; background: var(--bg); border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 11px; line-height: 1.5; text-align: center;
+  }
+  .legal a { color: var(--cyan); }
+  body { padding-bottom: 90px; }
+</style>
+</head>
+<body>
+  <div class="brand">Schematic<b>Maker</b></div>
+  <p class="lead">Werkzeuge wählen</p>
+
+  <main class="tools">
+    <a class="card" href="noteblock.html">
+      <div class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#43d4e8" stroke-width="1.6" stroke-linecap="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>
+      </div>
+      <h2>Notenblock-Editor</h2>
+      <p>Songs als Piano-Roll setzen, mit Ebenen, 16 Instrumenten und Wiedergabe.</p>
+      <span class="go">Öffnen →</span>
+    </a>
+
+    <a class="card" href="schematic.html">
+      <div class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#43d4e8" stroke-width="1.6" stroke-linejoin="round"><path d="M12 2 21 7v10l-9 5-9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg>
+      </div>
+      <h2>Schematic-Viewer</h2>
+      <p>.litematic oder .schem in 3D ansehen, Blöcke ersetzen und das Ergebnis speichern.</p>
+      <span class="go">Öffnen →</span>
+    </a>
+  </main>
+
+  <footer class="legal">
+    Inoffizielles Fan-Werkzeug. Minecraft-Texturen, Modelle und Blockzustände © Mojang AB. Minecraft ist eine Marke der Mojang AB bzw. Microsoft; dieses Werkzeug steht in keiner Verbindung zu Mojang oder Microsoft und ist von ihnen nicht unterstützt.
+    Datenquelle: <a href="https://www.npmjs.com/package/mc-assets" target="_blank" rel="noopener">mc-assets</a> (MIT, © 2024 Vitaly Turovsky und Mitwirkende).
+  </footer>
+</body>
+</html>
